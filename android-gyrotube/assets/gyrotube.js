@@ -99,6 +99,7 @@ function fixViewport() {   // edge-to-edge: let content extend under the cutout;
 /* ---------------- 3. YouTube helpers ---------------- */
 const player = () => document.querySelector('#movie_player') || document.querySelector('.html5-video-player');
 const isWatch = () => location.pathname === '/watch' || location.pathname.startsWith('/live/');
+const isShorts = () => location.pathname === '/shorts' || location.pathname.startsWith('/shorts/');
 const videoId = () => { try { return new URL(location.href).searchParams.get('v') || location.pathname; } catch (_) { return location.pathname; } };
 const findVideo = () => { const p = player(); return (p && p.querySelector('video')) || document.querySelector('video'); };
 const title = () => (document.title || '').replace(/\s*-\s*YouTube\s*$/i, '');
@@ -167,11 +168,27 @@ function layout() {   // pure arithmetic on cached viewport size — no DOM layo
   const rot = !browserLand && C.phys !== 0 && !G.nativeAuto ? C.phys : 0;
   const W = rot ? H0 : W0, H = rot ? W0 : H0;
   const a = v && v.videoWidth && v.videoHeight ? v.videoWidth / v.videoHeight : 16 / 9, s = W / H;
-  const zoomable = !browserLand && !rot && a > s * 1.001, mFit = zoomable ? a / s : 1;
+  // Portrait and square frames (Shorts, 1:1) always fit. Wider frames, including 4:3, fit only when they are not meaningfully wider than the viewport.
+  const fits = !!(v && v.videoWidth) && (a <= 1.05 || a <= s * 1.05);
+  const zoomable = !fits && !browserLand && !rot && a > s * 1.001, mFit = zoomable ? a / s : 1;
   const M = !zoomable ? 1 : S.zoom == null ? mFit : Math.max(1, Math.min(mFit, S.zoom));
-  return { rot, browserLand, W, H, a, s, zoomable, mFit, M, pan: zoomable && M > 1.001 };
+  return { rot, browserLand, W, H, a, s, fits, zoomable, mFit, M, pan: zoomable && M > 1.001 };
 }
-let lastDims = '';
+let lastDims = '', fitHintFor = '';
+function maybeFitHint(v) {
+  if (!ui || !v || !v.videoWidth || !G.L || !G.L.fits) return;
+  const id = (v.currentSrc || v.src || '') + ':' + v.videoWidth + 'x' + v.videoHeight;
+  if (fitHintFor === id) return;
+  fitHintFor = id;
+  ui.toast('Gyro off: video fits screen', 3200);
+}
+function bindDims(v) {
+  if (!v || v._gtDims) return;
+  v._gtDims = true;
+  const on = () => { if (!G.on || G.video !== v) return; G.L = layout(); apply(); maybeFitHint(v); };
+  v.addEventListener('loadedmetadata', on);
+  v.addEventListener('resize', on);
+}
 function apply() {
   const L = G.L, v = G.video, root = document.documentElement;
   const dims = L.W + 'x' + L.H;
@@ -185,6 +202,7 @@ function enter(manual) {
   if (G.on || !mount()) return;
   const v = findVideo(); if (!v) { if (manual) ui.toast('No video found'); return; }
   G.on = true; G.video = v; G.lastT = ''; lastDims = '';
+  bindDims(v);
   C.startSensors(); C.recenterView();
   v.classList.add('gt-video'); markAncestors(v);
   document.documentElement.classList.add('gt-on');
@@ -329,7 +347,8 @@ function frame(now) {
   C.update(dt, now, G.L);
   apply();
   drawRadar(now, v);
-  ui.mini(G.L.pan, 1 / G.L.M, C.X, now);
+  maybeFitHint(v);
+  ui.mini(G.L.pan && !G.L.fits, 1 / G.L.M, C.X, now);
   if (now - uiTick > 250) { uiTick = now; ui.setTime(v.currentTime, v.duration); ui.setPlaying(!v.paused); }   // ~4 Hz
 }
 const act = (name) => {
@@ -337,7 +356,7 @@ const act = (name) => {
   if (name === 'back') { G.suppressId = videoId(); exit(); }
   else if (name === 'play' && v) { if (v.paused) { if (p && p.playVideo) p.playVideo(); else v.play().catch(() => {}); } else { if (p && p.pauseVideo) p.pauseVideo(); else v.pause(); } }
   else if ((name === 'rew' || name === 'fwd') && v) { const t = Math.max(0, v.currentTime + (name === 'rew' ? -10 : 10)); if (p && p.seekTo) p.seekTo(t, true); else v.currentTime = t; }
-  else if (name === 'zoom') C.zoomCycle(G.L ? G.L.mFit : 4);
+  else if (name === 'zoom') { if (G.L && G.L.fits) return; C.zoomCycle(G.L ? G.L.mFit : 4); }
 };
 const seekTo = (f) => { const v = G.video, p = player(); if (!v || !isFinite(v.duration)) return; const t = f * v.duration; if (p && p.seekTo) p.seekTo(t, true); else v.currentTime = t; };
 
@@ -380,7 +399,7 @@ function keepOn(b) { if (NATIVE && NATIVE.keepScreenOn) try { NATIVE.keepScreenO
 document.addEventListener('play', (e) => { if (e.target && e.target.tagName === 'VIDEO') { keepOn(true); if (ui && G.on) ui.setPlaying(true); } }, true);
 document.addEventListener('pause', (e) => { if (e.target && e.target.tagName === 'VIDEO') { keepOn(false); if (ui && G.on) ui.setPlaying(false); } }, true);
 document.addEventListener('ended', (e) => { if (e.target && e.target.tagName === 'VIDEO') keepOn(false); }, true);
-fsReroute = () => { if (!isWatch()) return false; G.suppressId = null; if (!G.on) enter(true); if (G.on && ui) ui.show(); return G.on; };
+fsReroute = () => { if (isShorts() || !isWatch()) return false; G.suppressId = null; if (!G.on) enter(true); if (G.on && ui) ui.show(); return G.on; };
 window.gtFullscreen = () => !!(fsReroute && fsReroute());
 window.gtSetAutoRotate = (on) => { G.nativeAuto = !!on; G.lastT = ''; };
 window.gtBack = () => { if (ui && ui.back()) return true; if (G.on) { G.suppressId = videoId(); exit(); return true; } return false; };
@@ -410,11 +429,11 @@ function tick() {
   try {
     if (G.on) {   // housekeeping at 2 Hz instead of per frame
       const nv = findVideo();
-      if (nv && nv !== G.video) { if (G.video) G.video.classList.remove('gt-video'); G.video = nv; nv.classList.add('gt-video'); markAncestors(nv); G.lastT = ''; radar.dead = false; }
+      if (nv && nv !== G.video) { if (G.video) G.video.classList.remove('gt-video'); G.video = nv; nv.classList.add('gt-video'); markAncestors(nv); bindDims(nv); G.lastT = ''; radar.dead = false; }
       if (G.anc.length && !G.anc[0].classList.contains('gt-anc')) markAncestors(G.video);
       if (G.video && G.video.style.getPropertyValue('--gt-t') !== G.lastT) G.lastT = '';   // YouTube clobbered inline style
       if (ui) ui.setTitle(title());
-    } else if (S.autoGyro && isWatch() && G.suppressId !== videoId() && !adActive) {
+    } else if (S.autoGyro && isWatch() && !isShorts() && G.suppressId !== videoId() && !adActive) {
       const v = findVideo(); if (v && v.readyState >= 1 && v.videoWidth > 0) enter(false);
     }
   } catch (_) {}
