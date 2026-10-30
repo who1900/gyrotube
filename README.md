@@ -118,21 +118,21 @@ $$
 Outside it, the remaining angle is normalized and run through a mild S-curve. With no dead zone this is
 
 $$
-X = 0.5 + \operatorname{sign}(\Delta\gamma) \cdot \left(\frac{|\Delta\gamma|}{\gamma_{\max}}\right)^{p} \cdot 0.5
+X = 0.5 + \mathrm{sign}(\Delta\gamma) \cdot \left(\frac{|\Delta\gamma|}{\gamma_{\max}}\right)^{p} \cdot 0.5
 $$
 
 The code subtracts the dead zone first, then clamps:
 
 $$
-t = \operatorname{clamp}\!\left(\frac{|\Delta\gamma| - z}{\gamma_{\max} - z},\, 0,\, 1\right)
+t = \mathrm{clamp}\left(\frac{|\Delta\gamma| - z}{\gamma_{\max} - z}, 0, 1\right)
 $$
 
 $$
-X = \operatorname{clamp}\!\left(0.5 + \operatorname{sign}(\Delta\gamma)\, t^{p}\, 0.5,\, 0,\, 1\right)
+X = \mathrm{clamp}\left(0.5 + \mathrm{sign}(\Delta\gamma) \cdot t^{p} \cdot 0.5, 0, 1\right)
 $$
 
 $$
-\gamma_{\max} = 22° / s_{\mathrm{ens}}
+\gamma_{\max} = 22^{\circ} / s_{\mathrm{ens}}
 $$
 
 `X = 0` is the left edge of the frame, `X = 1` the right edge, `X = 0.5` the center. Preset sensitivities are ×1, ×1.5, and ×2.
@@ -140,15 +140,15 @@ $$
 That target is not applied raw. Each frame lerps toward it with a time constant that grows with tilt speed `ω` (degrees per second), so a slow drift stays smooth and a flick catches up. `s_speed` is the response slider (1 is neutral):
 
 $$
-\lambda = \big(\lambda_{\min} + (\lambda_{\max} - \lambda_{\min})\,\mathrm{smoothstep}(5,\, 120,\, |\omega|)\big) \cdot s_{\mathrm{speed}}
+\lambda = \big(\lambda_{\min} + (\lambda_{\max} - \lambda_{\min}) \cdot \mathrm{smoothstep}(5, 120, |\omega|)\big) \cdot s_{\mathrm{speed}}
 $$
 
 $$
-\mathrm{smoothstep}(a, b, x) = u^{2}(3 - 2u), \quad u = \operatorname{clamp}\!\left(\frac{x - a}{b - a},\, 0,\, 1\right)
+\mathrm{smoothstep}(a, b, x) = u^{2}(3 - 2u), \quad u = \mathrm{clamp}\left(\frac{x - a}{b - a}, 0, 1\right)
 $$
 
 $$
-X \leftarrow X + (X^{\star} - X)\,\big(1 - e^{-\lambda \Delta t}\big)
+X \leftarrow X + (X^{\star} - X) \cdot \big(1 - e^{-\lambda \Delta t}\big)
 $$
 
 | Profile | λ min | λ max | Feel |
