@@ -10,7 +10,7 @@ const SAMPLE_HLS = 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8';
 const HLS_CDN = 'https://cdn.jsdelivr.net/npm/hls.js@1/dist/hls.light.min.js';
 const HUD_UV = [0, 0, 0.16, 0.284];                 // top-left 16:9 region ≈ square (radar)
 const NATIVE = window.GyroViewNative || null;
-const VERSION = '1.4';
+const VERSION = '1.5';
 
 let legacy = {}; try { legacy = JSON.parse(localStorage.getItem('gv') || '{}') || {}; } catch (_) {}
 const C = K.core({ key: 'gyroview2', native: NATIVE, toast: (m) => ui && ui.toast(m),
@@ -29,7 +29,7 @@ const act = (name) => {
   else if (name === 'fs') toggleFs();
 };
 ui = K.ui({ id: 'gyroview-ui', core: C, appName: 'GyroView', version: VERSION, backIcon: 'back',
-  aboutText: 'Вертикальный плеер с гироскопическим панорамированием. WebGL, без фреймворков.',
+  aboutText: 'Vertical player with gyro panning. WebGL, no frameworks.',
   features: { hud: true, fs: !NATIVE }, act, seek: (f) => { if (isFinite(video.duration)) video.currentTime = f * video.duration; } });
 document.body.appendChild(ui.host);
 C.bindTouch(ui.touch, { L: () => st.L, rot: () => (st.L ? st.L.rot : 0),
@@ -43,7 +43,7 @@ window.gvPause = () => { video.pause(); };
 /* ---------------- WebGL ---------------- */
 const gl = cv.getContext('webgl', { alpha: false, antialias: false, depth: false, stencil: false,
   premultipliedAlpha: false, preserveDrawingBuffer: false, powerPreference: 'low-power', desynchronized: true });
-if (!gl) { $('sErr').textContent = 'WebGL недоступен в этом браузере'; return; }
+if (!gl) { $('sErr').textContent = 'WebGL isn\'t available in this browser'; return; }
 const VS = `attribute vec2 aP;uniform vec4 uDst;uniform vec4 uUV;uniform mat2 uRot;varying vec2 vUV;
 void main(){vec2 p=uDst.xy+aP*uDst.zw;gl_Position=vec4(uRot*p,0.,1.);
 /* U_render = U_base*scaleX + offsetU */ vUV=vec2(uUV.x+aP.x*uUV.z,uUV.y+(1.-aP.y)*uUV.w);}`;
@@ -64,7 +64,7 @@ gl.clearColor(0, 0, 0, 1);
 let corsWarned = false;
 function upload() {
   try { gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video); st.hasTex = true; }
-  catch (e) { if (!corsWarned) { corsWarned = true; ui.toast('Источник без CORS — WebGL не может читать кадры', 5000); } }
+  catch (e) { if (!corsWarned) { corsWarned = true; ui.toast('No CORS on this source, so WebGL can\'t read the frames', 5000); } }
 }
 
 /* ---------------- Layout (cached viewport, no per-frame DOM reads) ---------------- */
@@ -87,8 +87,8 @@ function layout(force) {
   st.L = { rot, browserLand, pan: zoomable && M > 1.001, zoomable, a, s, vw, vh, M, mFit, sx: 1 / M, hc: 2 * Math.min(1, M * s / a), W: vw / st.dpr };
   if (force || !prev || prev.M !== M || prev.rot !== rot || prev.browserLand !== browserLand) {
     st.dirty = true; ui.setRot(rot);
-    if (prev && prev.rot !== rot) ui.toast(rot ? 'Весь кадр — поворот заблокирован' : 'Вертикальный режим');
-    else if (prev && prev.browserLand !== browserLand) ui.toast(browserLand ? 'Горизонтально: весь кадр' : 'Вертикальный режим');
+    if (prev && prev.rot !== rot) ui.toast(rot ? 'Full frame — rotation is locked' : 'Portrait');
+    else if (prev && prev.browserLand !== browserLand) ui.toast(browserLand ? 'Landscape: full frame' : 'Portrait');
   }
 }
 function hudRect(w) { const m = 16, s = Math.round(w * 0.34); return { x: m, y: 72, s }; }
@@ -140,8 +140,8 @@ function toggleFs() {
   const d = document, el = d.documentElement;
   if (isFs()) { (d.exitFullscreen || d.webkitExitFullscreen).call(d); return; }
   const req = el.requestFullscreen || el.webkitRequestFullscreen;
-  if (!req) { ui.toast('Полный экран не поддерживается (iPhone: «На экран Домой»)', 3500); return; }
-  try { const p = req.call(el, { navigationUI: 'hide' }); if (p && p.then) p.then(tryLock, () => ui.toast('Полный экран отклонён')); } catch (_) {}
+  if (!req) { ui.toast('Full screen isn\'t supported. On iPhone, use Add to Home Screen.', 3500); return; }
+  try { const p = req.call(el, { navigationUI: 'hide' }); if (p && p.then) p.then(tryLock, () => ui.toast('Full screen was blocked')); } catch (_) {}
 }
 function tryLock() {
   const so = screen.orientation;
@@ -168,7 +168,7 @@ function loadHlsJs() {
   if (window.Hls) return Promise.resolve();
   return hlsLoading || (hlsLoading = new Promise((res, rej) => { const s = document.createElement('script'); s.src = HLS_CDN; s.async = true; s.onload = res; s.onerror = () => { hlsLoading = null; rej(new Error('hls.js')); }; document.head.appendChild(s); }));
 }
-function play() { const p = video.play(); if (p && p.catch) p.catch(() => { ui.show(); ui.toast('Нажмите ▶'); }); }
+function play() { const p = video.play(); if (p && p.catch) p.catch(() => { ui.show(); ui.toast('Tap play'); }); }
 async function openSource(url, label) {
   $('sErr').textContent = '';
   if (hls) { hls.destroy(); hls = null; }
@@ -180,12 +180,12 @@ async function openSource(url, label) {
     try { await loadHlsJs(); } catch (e) { /* native fallback */ }
     if (window.Hls && window.Hls.isSupported()) {
       hls = new window.Hls({ enableWorker: true, lowLatencyMode: true, capLevelToPlayerSize: false });
-      hls.on(window.Hls.Events.ERROR, (_, d) => { if (d.fatal) ui.toast('HLS ошибка: ' + d.details, 4000); });
+      hls.on(window.Hls.Events.ERROR, (_, d) => { if (d.fatal) ui.toast('HLS error: ' + d.details, 4000); });
       hls.loadSource(url); hls.attachMedia(video);
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) video.src = url;
-    else { fail('HLS не поддерживается'); return; }
+    else { fail('HLS isn\'t supported'); return; }
   } else video.src = url;
-  ui.setTitle(label || decodeURIComponent(url.split('/').pop().split('?')[0]) || 'Видео');
+  ui.setTitle(label || decodeURIComponent(url.split('/').pop().split('?')[0]) || 'Video');
   $('start').classList.add('gone'); ui.active(true); C.startSensors(); play();
   setTimeout(() => ui.onboarding(false), 400);
 }
@@ -197,14 +197,14 @@ video.addEventListener('loadeddata', () => { st.newFrame = true; });
 video.addEventListener('play', () => { ui.setPlaying(true); wakeOn(); });
 video.addEventListener('pause', () => { ui.setPlaying(false); wakeOff(); });
 video.addEventListener('ended', wakeOff);
-video.addEventListener('error', () => { const c = video.error && video.error.code; fail(`Не удалось открыть видео (код ${c}). Для ссылки нужен CORS.`); });
+video.addEventListener('error', () => { const c = video.error && video.error.code; fail(`Couldn\'t open the video (code ${c}). Links need CORS.`); });
 
 // start screen — every action is a user gesture: ask sensor permission first (sync, iOS), then load.
 const gesture = (fn) => () => { C.requestPermission(); fn(); };
-K.tap($('sDemo'), gesture(() => openSource(SAMPLE_MP4, 'Тестовый ролик')));
+K.tap($('sDemo'), gesture(() => openSource(SAMPLE_MP4, 'Test clip')));
 K.tap($('sHls'), gesture(() => openSource(SAMPLE_HLS, 'Big Buck Bunny · HLS')));
 $('sFile').addEventListener('change', (e) => { const f = e.target.files && e.target.files[0]; if (!f) return; C.requestPermission(); openSource(URL.createObjectURL(f), f.name); });
-const openUrl = gesture(() => { const u = $('sUrl').value.trim(); if (!u) return; try { openSource(new URL(u).href); } catch (_) { $('sErr').textContent = 'Неверная ссылка'; } });
+const openUrl = gesture(() => { const u = $('sUrl').value.trim(); if (!u) return; try { openSource(new URL(u).href); } catch (_) { $('sErr').textContent = 'That link doesn\'t look right'; } });
 K.tap($('sOpen'), openUrl);
 $('sUrl').addEventListener('keydown', (e) => { if (e.key === 'Enter') openUrl(); });
 document.addEventListener('gesturestart', (e) => e.preventDefault());

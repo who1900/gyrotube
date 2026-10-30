@@ -108,7 +108,7 @@ public class MainActivity extends Activity {
                 i.addCategory(Intent.CATEGORY_OPENABLE);
                 i.setType("video/*");
                 try {
-                    startActivityForResult(Intent.createChooser(i, "Видео"), REQ_FILE);
+                    startActivityForResult(Intent.createChooser(i, "Video"), REQ_FILE);
                 } catch (Exception e) {
                     fileCb = null; cb.onReceiveValue(null); return false;
                 }

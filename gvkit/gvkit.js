@@ -221,9 +221,9 @@ function core(cfg) {
   }
   function delta() { const c = C.cur, r = C.ref, w = c.w; const d = w * wrap180(c.roll - r.roll) + (1 - w) * wrap180(c.gamma - r.gamma); return S.invert ? -d : d; }
   function calibrate(silent) {
-    if (!C.cur) { if (!silent) toast('Нет данных гироскопа — используйте свайп'); C.Xt = 0.5; C.manual = false; return; }
+    if (!C.cur) { if (!silent) toast('No gyro data — swipe to pan'); C.Xt = 0.5; C.manual = false; return; }
     C.ref = { roll: C.cur.roll, gamma: C.cur.gamma }; velLastD = null; C.vel = 0; C.manual = false; C.Xt = 0.5;
-    if (!silent) toast('Центр задан');
+    if (!silent) toast('Center set');
   }
   function rebase() {   // gyro takes control back without a jump: current angle ↔ current X
     if (!C.cur) return;
@@ -300,15 +300,15 @@ function core(cfg) {
   C.calibrate = calibrate; C.rebase = rebase; C.mapTilt = mapTilt;
   C.recenterView = () => { C.X = C.Xt = 0.5; C.manual = false; if (C.cur) calibrate(true); };
   /* zoom helpers: S.zoom = null (fit height) | number magnification vs full width (1 = full 16:9) */
-  C.zoomLabel = () => { const z = S.zoom; return z == null ? 'Высота' : z <= 1.001 ? '16:9' : (Math.round(z * 10) / 10) + '×'; };
-  C.setZoom = (z, quiet) => { C.set('zoom', z); if (!quiet) toast('Масштаб: ' + (z == null ? 'по высоте' : z <= 1.001 ? 'полный кадр 16:9' : C.zoomLabel())); };
+  C.zoomLabel = () => { const z = S.zoom; return z == null ? 'Height' : z <= 1.001 ? '16:9' : (Math.round(z * 10) / 10) + '×'; };
+  C.setZoom = (z, quiet) => { C.set('zoom', z); if (!quiet) toast('Zoom: ' + (z == null ? 'fit height' : z <= 1.001 ? 'full 16:9 frame' : C.zoomLabel())); };
   C.zoomCycle = (mFit) => { let i = ZOOMS.findIndex((z) => z === S.zoom); if (i < 0) i = 0;
     for (let k = 1; k <= ZOOMS.length; k++) { const z = ZOOMS[(i + k) % ZOOMS.length]; if (z == null || z < (mFit || 4) - 0.05) { C.setZoom(z); return; } } };
   let prevZoom = null;
   C.toggleFit = () => { if (S.zoom !== null && S.zoom <= 1.001) C.setZoom(prevZoom); else { prevZoom = S.zoom; C.setZoom(1); } };
-  C.sensCycle = () => { const i = SENS_PRESETS.findIndex((v) => v > S.sens + 0.05); const v = i < 0 ? SENS_PRESETS[0] : SENS_PRESETS[i]; C.set('sens', v); toast('Чувствительность ×' + v.toFixed(1)); };
-  C.profileToggle = () => { C.set('profile', S.profile === 'esports' ? 'cinema' : 'esports'); const p = PROFILES[S.profile]; toast(`Профиль: ${p.name}`); };
-  C.tiltToggle = () => { C.set('tilt', !S.tilt); toast(S.tilt ? 'Наклон включён' : 'Наклон выключен — используйте свайп'); };
+  C.sensCycle = () => { const i = SENS_PRESETS.findIndex((v) => v > S.sens + 0.05); const v = i < 0 ? SENS_PRESETS[0] : SENS_PRESETS[i]; C.set('sens', v); toast('Sensitivity ×' + v.toFixed(1)); };
+  C.profileToggle = () => { C.set('profile', S.profile === 'esports' ? 'cinema' : 'esports'); const p = PROFILES[S.profile]; toast(`Profile: ${p.name}`); };
+  C.tiltToggle = () => { C.set('tilt', !S.tilt); toast(S.tilt ? 'Tilt on' : 'Tilt off — swipe to pan'); };
   /** touch: 1 finger drag pans (gyro paused), pinch zooms, 2-finger double tap → 16:9; instant onDown for controls */
   C.bindTouch = (el, hk) => {
     const ptrs = new Map(); let two = null, lastTwo = 0, drag = null;
@@ -362,23 +362,23 @@ function ui(cfg) {
   const ib = (id, ic, label, extra) => h('button', { id, class: 'ib' + (extra ? ' ' + extra : ''), type: 'button', 'aria-label': label, title: label }, icon(ic));
 
   // ---- player layer
-  const ptop = h('div', { id: 'ptop' }, ib('pback', cfg.backIcon || 'back', 'Назад'), h('div', { id: 'ptitle', text: cfg.title || '' }),
-    F.fs ? ib('pfs', 'fullscreen', 'Полный экран') : null, ib('pset', 'settings', 'Настройки'));
-  const seek = h('input', { id: 'seek', type: 'range', min: '0', max: '1000', step: '1', value: '0', 'aria-label': 'Перемотка' });
+  const ptop = h('div', { id: 'ptop' }, ib('pback', cfg.backIcon || 'back', 'Back'), h('div', { id: 'ptitle', text: cfg.title || '' }),
+    F.fs ? ib('pfs', 'fullscreen', 'Full screen') : null, ib('pset', 'settings', 'Settings'));
+  const seek = h('input', { id: 'seek', type: 'range', min: '0', max: '1000', step: '1', value: '0', 'aria-label': 'Seek' });
   const cb = (id, ic, label, big) => h('button', { id, class: 'cb' + (big ? ' big' : ''), type: 'button', 'aria-label': label, title: label }, icon(ic));
   const rb = (id, ic, label, badge) => h('button', { id, class: 'rb', type: 'button', 'aria-label': label, title: label }, icon(ic), badge ? h('span', { class: 'badge', id: id + 'b' }) : null);
-  const pmid = h('div', { id: 'pmid' }, cb('prew', 'rew', 'Назад 10 с'), cb('pplay', 'play', 'Пуск/пауза', true), cb('pfwd', 'fwd', 'Вперёд 10 с'));
+  const pmid = h('div', { id: 'pmid' }, cb('prew', 'rew', 'Back 10 seconds'), cb('pplay', 'play', 'Play or pause', true), cb('pfwd', 'fwd', 'Forward 10 seconds'));
   const pbot = h('div', { id: 'pbot' }, seek,
     h('div', { class: 'brow' }, h('div', { id: 'time' }, h('span', { id: 'tc', text: '0:00' }), h('i', { text: ' / ' }), h('i', { id: 'td', text: '0:00' })),
-      rb('bzoom', 'zoom', 'Масштаб', true), rb('btilt', 'tilt', 'Наклон'), rb('bcenter', 'center', 'Центр')));
+      rb('bzoom', 'zoom', 'Zoom', true), rb('btilt', 'tilt', 'Tilt'), rb('bcenter', 'center', 'Center')));
   const mini = h('div', { id: 'mini', 'aria-hidden': 'true' }, h('div', { id: 'miniwin' }), h('div', { id: 'minic' }));
-  const adb = h('div', { id: 'adb' }, icon('ad'), h('span', { text: 'Реклама пропускается' }));
+  const adb = h('div', { id: 'adb' }, icon('ad'), h('span', { text: 'Skipping ad' }));
   const player = h('div', { class: 'player hide', id: 'player' }, ptop, mini, adb, pmid, pbot);
 
   // ---- settings sheet
   const sbody = h('div', { id: 'sbody' });
-  const sheet = h('div', { id: 'sheet', role: 'dialog', 'aria-label': 'Настройки' },
-    h('div', { id: 'shead' }, h('div', { class: 'handle' }), h('div', { class: 'shtitle' }, h('b', { text: 'Настройки' }), ib('sclose', 'close', 'Закрыть'))), sbody);
+  const sheet = h('div', { id: 'sheet', role: 'dialog', 'aria-label': 'Settings' },
+    h('div', { id: 'shead' }, h('div', { class: 'handle' }), h('div', { class: 'shtitle' }, h('b', { text: 'Settings' }), ib('sclose', 'close', 'Close'))), sbody);
   const scrim = h('div', { id: 'scrim' });
   // ---- onboarding
   const ill = document.createElementNS(NS, 'svg'); ill.setAttribute('viewBox', '0 0 132 96'); ill.setAttribute('class', 'ill');
@@ -390,12 +390,12 @@ function ui(cfg) {
     mk('rect', { x: 54, y: 22, width: 24, height: 58, rx: 3, fill: '#6A3C00' }), mk('circle', { cx: 66, cy: 51, r: 5, fill: '#FFB870' }));
   ill.append(ph);
   const tip = (ic, t, s) => h('div', { class: 'tip' }, icon(ic), h('div', null, h('b', { text: t }), s));
-  const onb = h('div', { id: 'onb' }, h('div', { class: 'card', role: 'dialog' }, ill, h('h2', { text: 'Смотрите наклоном' }),
-    tip('tilt', 'Наклоняйте телефон', 'Влево и вправо — кадр плавно следует за взглядом.'),
-    tip('swipe', 'Свайп по экрану', 'Ручной сдвиг. Через 1,5 с управление вернётся гироскопу.'),
-    tip('pinch', 'Щипок — масштаб', 'Два пальца ×2 — весь кадр 16:9.'),
-    tip('center', 'Кнопка «Центр»', 'Текущее положение телефона станет нейтральным.'),
-    h('div', { class: 'act' }, h('button', { id: 'onbok', class: 'fbtn', type: 'button' }, 'Понятно'))));
+  const onb = h('div', { id: 'onb' }, h('div', { class: 'card', role: 'dialog' }, ill, h('h2', { text: 'Watch by tilting' }),
+    tip('tilt', 'Tilt the phone', 'Left and right, the frame follows your gaze.'),
+    tip('swipe', 'Swipe to pan', 'Manual pan. Gyro control returns after 1.5 s.'),
+    tip('pinch', 'Pinch to zoom', 'A two-finger pinch shows the full 16:9 frame.'),
+    tip('center', 'Center', 'The current angle of the phone becomes neutral.'),
+    h('div', { class: 'act' }, h('button', { id: 'onbok', class: 'fbtn', type: 'button' }, 'Got it'))));
   const toastEl = h('div', { id: 'toast', role: 'status' });
   const frame = h('div', { id: 'frame' }, player, scrim, sheet, onb, toastEl);
   const bd = h('div', { id: 'bd' }), touch = h('div', { id: 'touch' });
@@ -405,9 +405,9 @@ function ui(cfg) {
   let abar = null, amenu = null;
   if (cfg.appbar) {
     host.classList.add('appbar');
-    const q = h('input', { id: 'aq', type: 'search', enterkeyhint: 'search', placeholder: 'Поиск на YouTube', autocomplete: 'off', 'aria-label': 'Поиск' });
-    abar = h('div', { id: 'abar' }, ib('aback', 'back', 'Назад'), cfg.appbar.home ? ib('ahome', 'home', 'Главная') : null, h('label', { class: 'sbar' }, icon('search', 20), q),
-      ib('agyro', 'gyro', 'Gyro-плеер', 'acc'), ib('amore', 'menu', 'Меню'));
+    const q = h('input', { id: 'aq', type: 'search', enterkeyhint: 'search', placeholder: 'Search YouTube', autocomplete: 'off', 'aria-label': 'Search' });
+    abar = h('div', { id: 'abar' }, ib('aback', 'back', 'Back'), cfg.appbar.home ? ib('ahome', 'home', 'Home') : null, h('label', { class: 'sbar' }, icon('search', 20), q),
+      ib('agyro', 'gyro', 'Gyro player', 'acc'), ib('amore', 'menu', 'Menu'));
     amenu = h('div', { id: 'amenu', role: 'menu' });
     for (const it of cfg.appbar.menu || []) { const b = h('button', { class: 'mi', type: 'button', role: 'menuitem' }, icon(it.icon), h('span', { text: it.label })); tap(b, () => { amenu.classList.remove('show'); it.go(); }); amenu.append(b); }
     sr.append(abar, amenu);
@@ -503,23 +503,23 @@ function ui(cfg) {
     return h('div', { class: 'row col' }, h('div', { class: 't', text: t }), s ? h('div', { class: 's', text: s }) : null, seg); };
   const x = (v) => '×' + v.toFixed(1);
   ((...a) => sbody.append(...a.filter((c) => c != null)))(
-    sec('Гироскоп', swRow('tilt', 'Управление наклоном', 'Выключите, чтобы двигать кадр только свайпом', 'tilt'),
-      slRow('sens', 'Чувствительность', 0.5, 3, 0.1, x, 'Насколько сильно нужно наклонить телефон'),
-      slRow('speed', 'Скорость отклика', 0.5, 2, 0.1, x, 'Медленно — плавнее, быстро — меньше задержка'),
-      swRow('invert', 'Инвертировать направление', 'Наклон вправо сдвигает кадр влево', 'swipe'),
-      slRow('dz', 'Мёртвая зона', 0, 2, 0.1, (v) => v.toFixed(1) + '°', 'Игнорировать дрожание рук меньше этого угла')),
-    sec('Профиль', segRow('profile', 'Характер движения', [['esports', 'Esports'], ['cinema', 'Cinema']], 'Esports — быстро и точно, Cinema — мягко и плавно')),
-    sec('Картинка', segRow('zoom', 'Масштаб', [[null, 'Высота'], [2, '2×'], [1.5, '1.5×'], [1, '16:9']]),
-      F.hud ? swRow('hud', 'Закреплённый радар', 'Esports: верхний левый угол кадра поверх видео', 'pip') : null,
-      F.autoGyro ? swRow('autoGyro', 'Открывать Gyro-плеер сам', 'При запуске любого видео', 'gyro') : null),
-    F.adblock ? sec('Реклама', swRow('adblock', 'Блокировать рекламу', 'Сеть, видеореклама и промо-карточки', 'ad')) : null,
-    sec('О приложении', h('div', { class: 'about' }, h('div', { class: 't', text: (cfg.appName || 'GyroView') + ' ' + (cfg.version || '') }),
-      h('div', { class: 's', text: cfg.aboutText || 'Вертикальный плеер с гироскопическим панорамированием.' })),
-      (() => { const b = h('button', { class: 'tbtn', type: 'button', style: 'margin:0 12px 8px' }, 'Показать подсказку'); tap(b, () => { closeSheet(); U.onboarding(true); }); return b; })()));
+    sec('Gyroscope', swRow('tilt', 'Tilt control', 'Turn off to pan by swiping only', 'tilt'),
+      slRow('sens', 'Sensitivity', 0.5, 3, 0.1, x, 'How far you tilt the phone'),
+      slRow('speed', 'Response', 0.5, 2, 0.1, x, 'Slower is smoother. Faster catches up sooner.'),
+      swRow('invert', 'Invert direction', 'Tilting right pans the picture left', 'swipe'),
+      slRow('dz', 'Dead zone', 0, 2, 0.1, (v) => v.toFixed(1) + '°', 'Ignore hand shake smaller than this angle')),
+    sec('Profile', segRow('profile', 'Motion', [['esports', 'Esports'], ['cinema', 'Cinema']], 'Esports is quick and tight. Cinema is soft.')),
+    sec('Picture', segRow('zoom', 'Zoom', [[null, 'Height'], [2, '2×'], [1.5, '1.5×'], [1, '16:9']]),
+      F.hud ? swRow('hud', 'Pinned radar', 'Esports: keep the top-left of the frame on screen', 'pip') : null,
+      F.autoGyro ? swRow('autoGyro', 'Open the gyro player automatically', 'When a video starts', 'gyro') : null),
+    F.adblock ? sec('Ads', swRow('adblock', 'Block ads', 'Network ads, video ads, and promos', 'ad')) : null,
+    sec('About', h('div', { class: 'about' }, h('div', { class: 't', text: (cfg.appName || 'GyroView') + ' ' + (cfg.version || '') }),
+      h('div', { class: 's', text: cfg.aboutText || 'Vertical player with gyro panning.' })),
+      (() => { const b = h('button', { class: 'tbtn', type: 'button', style: 'margin:0 12px 8px' }, 'Show tips'); tap(b, () => { closeSheet(); U.onboarding(true); }); return b; })()));
   U.refresh = () => {
     const zb = $('bzoomb'), zl = S.zoom == null ? '' : S.zoom <= 1.001 ? '16:9' : C.zoomLabel();
     zb.textContent = zl; zb.classList.toggle('show', !!zl); $('bzoom').classList.toggle('on', S.zoom !== null);
-    const ti = $('btilt'); ti.classList.toggle('on', !!S.tilt); ti.setAttribute('aria-pressed', String(!!S.tilt)); ti.title = S.tilt ? 'Наклон включён' : 'Наклон выключен';
+    const ti = $('btilt'); ti.classList.toggle('on', !!S.tilt); ti.setAttribute('aria-pressed', String(!!S.tilt)); ti.title = S.tilt ? 'Tilt on' : 'Tilt off';
     for (const f of controls) f();
   };
   C.on(() => U.refresh());

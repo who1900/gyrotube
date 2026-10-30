@@ -135,7 +135,7 @@ function apply() {
 }
 function enter(manual) {
   if (G.on || !mount()) return;
-  const v = findVideo(); if (!v) { if (manual) ui.toast('Видео не найдено'); return; }
+  const v = findVideo(); if (!v) { if (manual) ui.toast('No video found'); return; }
   G.on = true; G.video = v; G.lastT = ''; lastDims = '';
   C.startSensors(); C.recenterView();
   v.classList.add('gt-video'); markAncestors(v);
@@ -180,15 +180,15 @@ function mount() {
   if (ui && ui.host.isConnected) return true;
   if (!document.body) return false;
   if (!ui) {
-    ui = K.ui({ id: 'gyrotube-root', core: C, appName: 'GyroTube', version: '1.3', backIcon: 'close', css: TUBE_CSS,
-      aboutText: 'Личное использование. Не связано с YouTube/Google и не для Google Play: блокировка рекламы нарушает условия YouTube.',
+    ui = K.ui({ id: 'gyrotube-root', core: C, appName: 'GyroTube', version: '1.4', backIcon: 'close', css: TUBE_CSS,
+      aboutText: 'Personal use. Not affiliated with YouTube or Google, and not for Google Play: blocking ads may violate the YouTube Terms of Service.',
       features: { backdrop: true, adblock: true, autoGyro: true }, act, seek: seekTo,
-      onSetting: (k) => { if (k === 'adblock') { addStyles(); if (NATIVE && NATIVE.setAdblock) try { NATIVE.setAdblock(!!S.adblock); } catch (_) {} if (!S.adblock && adActive) endAd(); ui.toast(S.adblock ? 'Блокировка рекламы включена' : 'Блокировка рекламы выключена'); } },
+      onSetting: (k) => { if (k === 'adblock') { addStyles(); if (NATIVE && NATIVE.setAdblock) try { NATIVE.setAdblock(!!S.adblock); } catch (_) {} if (!S.adblock && adActive) endAd(); ui.toast(S.adblock ? 'Ad blocking on' : 'Ad blocking off'); } },
       appbar: { back: () => history.back(), home: () => { location.href = '/'; }, gyro: () => { G.suppressId = null; enter(true); }, search: (q) => { location.href = '/results?search_query=' + encodeURIComponent(q); },
-        menu: [{ icon: 'home', label: 'Главная', go: () => { location.href = '/'; } }, { icon: 'sub', label: 'Подписки', go: () => { location.href = '/feed/subscriptions'; } },
-          { icon: 'shorts', label: 'Shorts', go: () => { location.href = '/shorts'; } }, { icon: 'library', label: 'Библиотека', go: () => { location.href = '/feed/library'; } },
-          { icon: 'history', label: 'История', go: () => { location.href = '/feed/history'; } }, { icon: 'account', label: 'Аккаунт', go: () => { location.href = '/account'; } },
-          { icon: 'settings', label: 'Настройки', go: () => ui.openSettings() }] } });
+        menu: [{ icon: 'home', label: 'Home', go: () => { location.href = '/'; } }, { icon: 'sub', label: 'Subscriptions', go: () => { location.href = '/feed/subscriptions'; } },
+          { icon: 'shorts', label: 'Shorts', go: () => { location.href = '/shorts'; } }, { icon: 'library', label: 'Library', go: () => { location.href = '/feed/library'; } },
+          { icon: 'history', label: 'History', go: () => { location.href = '/feed/history'; } }, { icon: 'account', label: 'Account', go: () => { location.href = '/account'; } },
+          { icon: 'settings', label: 'Settings', go: () => ui.openSettings() }] } });
     C.bindTouch(ui.touch, { L: () => G.L, rot: () => (G.L ? G.L.rot : 0),
       onDown: () => { if (!ui.isShown()) { ui.show(); return true; } return false; },          // instant: controls appear on touch-down
       onTap: (shownOnDown) => { if (!shownOnDown) ui.hide(); } });
