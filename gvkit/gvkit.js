@@ -402,14 +402,22 @@ function ui(cfg) {
   sr.append(bd, touch, frame);
 
   // ---- app bar (GyroTube browse mode)
-  let abar = null, amenu = null;
+  let abar = null, amenu = null, fillMenu = () => {};
   if (cfg.appbar) {
     host.classList.add('appbar');
     const q = h('input', { id: 'aq', type: 'search', enterkeyhint: 'search', placeholder: 'Search YouTube', autocomplete: 'off', 'aria-label': 'Search' });
     abar = h('div', { id: 'abar' }, ib('aback', 'back', 'Back'), cfg.appbar.home ? ib('ahome', 'home', 'Home') : null, h('label', { class: 'sbar' }, icon('search', 20), q),
       ib('agyro', 'gyro', 'Gyro player', 'acc'), ib('amore', 'menu', 'Menu'));
     amenu = h('div', { id: 'amenu', role: 'menu' });
-    for (const it of cfg.appbar.menu || []) { const b = h('button', { class: 'mi', type: 'button', role: 'menuitem' }, icon(it.icon), h('span', { text: it.label })); tap(b, () => { amenu.classList.remove('show'); it.go(); }); amenu.append(b); }
+    fillMenu = (items) => {
+      amenu.textContent = '';
+      for (const it of items || []) {
+        const b = h('button', { class: 'mi', type: 'button', role: 'menuitem' }, icon(it.icon), h('span', { text: it.label }));
+        tap(b, () => { amenu.classList.remove('show'); it.go(); });
+        amenu.append(b);
+      }
+    };
+    fillMenu(cfg.appbar.menu);
     sr.append(abar, amenu);
     tap($('aback'), () => cfg.appbar.back(), true);
     tap($('agyro'), () => cfg.appbar.gyro(), true);
@@ -431,7 +439,7 @@ function ui(cfg) {
 
   // ---- controls visibility
   let shown = false, hideT = 0, playing = false;
-  const U = { host, touch, frame, sr };
+  const U = { host, touch, frame, sr, setMenu: (items) => fillMenu(items) };
   const autoHide = () => { clearTimeout(hideT); if (playing && !sheet.classList.contains('open')) hideT = setTimeout(U.hide, 3000); };
   U.show = () => { if (!shown) { shown = true; player.classList.remove('hide'); } autoHide(); };
   U.hide = () => { clearTimeout(hideT); if (shown) { shown = false; player.classList.remove('hide'); player.classList.add('hide'); } };
@@ -502,6 +510,12 @@ function ui(cfg) {
     controls.push(() => { for (const [v, b] of bs) { const on = S[k] === v; b.classList.toggle('on', on); b.setAttribute('aria-checked', String(on)); } });
     return h('div', { class: 'row col' }, h('div', { class: 't', text: t }), s ? h('div', { class: 's', text: s }) : null, seg); };
   const x = (v) => '×' + v.toFixed(1);
+  let signOutBtn = null;
+  if (cfg.account) {
+    signOutBtn = h('button', { class: 'tbtn', type: 'button', style: 'margin:0 12px 8px' }, cfg.account.signOutLabel || 'Sign out');
+    tap(signOutBtn, () => { closeSheet(); cfg.account.signOut(); });
+    controls.push(() => { signOutBtn.hidden = !(cfg.account.signedIn && cfg.account.signedIn()); });
+  }
   ((...a) => sbody.append(...a.filter((c) => c != null)))(
     sec('Gyroscope', swRow('tilt', 'Tilt control', 'Turn off to pan by swiping only', 'tilt'),
       slRow('sens', 'Sensitivity', 0.5, 3, 0.1, x, 'How far you tilt the phone'),
@@ -513,6 +527,7 @@ function ui(cfg) {
       F.hud ? swRow('hud', 'Pinned radar', 'Esports: keep the top-left of the frame on screen', 'pip') : null,
       F.autoGyro ? swRow('autoGyro', 'Open the gyro player automatically', 'When a video starts', 'gyro') : null),
     F.adblock ? sec('Ads', swRow('adblock', 'Block ads', 'Network ads, video ads, and promos', 'ad')) : null,
+    cfg.account ? sec('Account', h('div', { class: 'about' }, h('div', { class: 's', text: cfg.account.privacy || '' })), signOutBtn) : null,
     sec('About', h('div', { class: 'about' }, h('div', { class: 't', text: (cfg.appName || 'GyroView') + ' ' + (cfg.version || '') }),
       h('div', { class: 's', text: cfg.aboutText || 'Vertical player with gyro panning.' })),
       (() => { const b = h('button', { class: 'tbtn', type: 'button', style: 'margin:0 12px 8px' }, 'Show tips'); tap(b, () => { closeSheet(); U.onboarding(true); }); return b; })()));

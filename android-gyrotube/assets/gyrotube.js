@@ -82,6 +82,34 @@ const isWatch = () => location.pathname === '/watch' || location.pathname.starts
 const videoId = () => { try { return new URL(location.href).searchParams.get('v') || location.pathname; } catch (_) { return location.pathname; } };
 const findVideo = () => { const p = player(); return (p && p.querySelector('video')) || document.querySelector('video'); };
 const title = () => (document.title || '').replace(/\s*-\s*YouTube\s*$/i, '');
+const SIGN_IN_URL = 'https://accounts.google.com/ServiceLogin?hl=en&service=youtube&continue=' + encodeURIComponent('https://m.youtube.com/');
+function signedIn() {
+  if (NATIVE && typeof NATIVE.isSignedIn === 'function') { try { return !!NATIVE.isSignedIn(); } catch (_) {} }
+  return /(?:^|;\s*)(?:SAPISID|__Secure-1PAPISID|__Secure-3PAPISID|LOGIN_INFO)=/.test(document.cookie || '');
+}
+function signIn() { location.href = SIGN_IN_URL; }
+function signOut() {
+  if (NATIVE && typeof NATIVE.signOut === 'function') { try { NATIVE.signOut(); return; } catch (_) {} }
+  for (const name of ['SAPISID', 'APISID', 'LOGIN_INFO', 'SID', 'HSID', 'SSID', '__Secure-1PAPISID', '__Secure-3PAPISID', '__Secure-1PSID', '__Secure-3PSID']) {
+    document.cookie = name + '=; Max-Age=0; Path=/; Domain=.youtube.com';
+    document.cookie = name + '=; Max-Age=0; Path=/; Domain=.google.com';
+  }
+  location.href = 'https://m.youtube.com/';
+}
+function menuItems() {
+  const on = signedIn();
+  const items = [{ icon: 'home', label: 'Home', go: () => { location.href = '/'; } }];
+  if (on) items.push({ icon: 'sub', label: 'Subscriptions', go: () => { location.href = '/feed/subscriptions'; } });
+  items.push(
+    { icon: 'shorts', label: 'Shorts', go: () => { location.href = '/shorts'; } },
+    { icon: 'library', label: 'Library', go: () => { location.href = '/feed/library'; } },
+    { icon: 'history', label: 'History', go: () => { location.href = '/feed/history'; } });
+  items.push(on
+    ? { icon: 'account', label: 'Account', go: () => { location.href = '/account'; } }
+    : { icon: 'account', label: 'Sign in to YouTube', go: signIn });
+  items.push({ icon: 'settings', label: 'Settings', go: () => { if (ui) ui.openSettings(); } });
+  return items;
+}
 
 /* ---------------- 4. ad skipper: scoped MutationObserver on the player's class + 1 s fallback ---------------- */
 let adMuted = null, adRate = null, adActive = false, obsPlayer = null, adMO = null;
@@ -184,11 +212,12 @@ function mount() {
       aboutText: 'Personal use. Not affiliated with YouTube or Google, and not for Google Play: blocking ads may violate the YouTube Terms of Service.',
       features: { backdrop: true, adblock: true, autoGyro: true }, act, seek: seekTo,
       onSetting: (k) => { if (k === 'adblock') { addStyles(); if (NATIVE && NATIVE.setAdblock) try { NATIVE.setAdblock(!!S.adblock); } catch (_) {} if (!S.adblock && adActive) endAd(); ui.toast(S.adblock ? 'Ad blocking on' : 'Ad blocking off'); } },
+      account: {
+        privacy: 'Your sign-in stays on this device inside GyroTube; the app never sees your password.',
+        signedIn, signOut, signOutLabel: 'Sign out',
+      },
       appbar: { back: () => history.back(), home: () => { location.href = '/'; }, gyro: () => { G.suppressId = null; enter(true); }, search: (q) => { location.href = '/results?search_query=' + encodeURIComponent(q); },
-        menu: [{ icon: 'home', label: 'Home', go: () => { location.href = '/'; } }, { icon: 'sub', label: 'Subscriptions', go: () => { location.href = '/feed/subscriptions'; } },
-          { icon: 'shorts', label: 'Shorts', go: () => { location.href = '/shorts'; } }, { icon: 'library', label: 'Library', go: () => { location.href = '/feed/library'; } },
-          { icon: 'history', label: 'History', go: () => { location.href = '/feed/history'; } }, { icon: 'account', label: 'Account', go: () => { location.href = '/account'; } },
-          { icon: 'settings', label: 'Settings', go: () => ui.openSettings() }] } });
+        menu: menuItems() } });
     C.bindTouch(ui.touch, { L: () => G.L, rot: () => (G.L ? G.L.rot : 0),
       onDown: () => { if (!ui.isShown()) { ui.show(); return true; } return false; },          // instant: controls appear on touch-down
       onTap: (shownOnDown) => { if (!shownOnDown) ui.hide(); } });
@@ -212,6 +241,14 @@ window.gtBack = () => { if (ui && ui.back()) return true; if (G.on) { G.suppress
 window.gtPause = () => { const v = findVideo(); if (v && !v.paused) try { v.pause(); } catch (_) {} };
 if (NATIVE && NATIVE.setAdblock) try { NATIVE.setAdblock(!!S.adblock); } catch (_) {}
 
+let lastSigned = null;
+function syncAccount() {
+  const on = signedIn();
+  if (on === lastSigned || !ui) return;
+  lastSigned = on;
+  if (ui.setMenu) ui.setMenu(menuItems());
+  if (ui.refresh) ui.refresh();
+}
 function onNav() {
   const href = location.href; if (href === G.lastHref) return; G.lastHref = href;
   if (G.on && !isWatch()) exit();
@@ -222,7 +259,7 @@ function onNav() {
 function tick() {
   try { addStyles(); fixViewport(); } catch (_) {}
   try { mount(); } catch (e) { log('ui fail', e); document.documentElement.classList.remove('gt-shell'); }
-  try { onNav(); } catch (_) {}
+  try { onNav(); syncAccount(); } catch (_) {}
   try { watchPlayer(); adCheck(); } catch (_) {}
   try {
     if (G.on) {   // housekeeping at 2 Hz instead of per frame

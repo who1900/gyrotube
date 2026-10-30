@@ -68,12 +68,19 @@ public class MainActivity extends Activity {
     private static final Pattern BLOCK_PATH = Pattern.compile(
         "/api/stats/ads|/pagead/|/ptracking|/get_midroll_|/pcs/activeview|/youtubei/v1/log_event|/csi_204|/ad_data_204");
     static volatile boolean adblock = true;
+    /** Google sign-in must not be treated as an ad host. accounts.google.com ends with google.com. */
+    static boolean isSignInHost(String h) {
+        return h.equals("accounts.google.com") || h.endsWith(".accounts.google.com")
+            || h.startsWith("accounts.google.") || h.equals("myaccount.google.com")
+            || h.equals("accounts.youtube.com");
+    }
     static boolean isBlocked(Uri u) {
         if (!adblock) return false;
         String h = u.getHost(); if (h == null) return false;
+        h = h.toLowerCase(Locale.ROOT);
+        if (isSignInHost(h)) return false;
         // fast path: video segments and thumbnails are the bulk of requests
         if (h.endsWith(".googlevideo.com") || h.endsWith(".ytimg.com") || h.endsWith(".ggpht.com")) return false;
-        h = h.toLowerCase(Locale.ROOT);
         for (int i = 0; i >= 0; i = h.indexOf('.', i) + 1) {   // walk suffixes: a.b.c → b.c → c
             if (BLOCK_HOSTS.contains(h.substring(i))) return true;
             if (h.indexOf('.', i) < 0) break;
@@ -244,6 +251,50 @@ public class MainActivity extends Activity {
         catch (Exception e) { return false; }
     }
 
+    /** Session cookies for this WebView only. SAPISID / LOGIN_INFO mean a Google or YouTube sign-in. */
+    boolean isSignedIn() {
+        return hasSession(cookie("https://m.youtube.com"))
+            || hasSession(cookie("https://www.youtube.com"))
+            || hasSession(cookie("https://accounts.google.com"));
+    }
+    private static String cookie(String url) {
+        try { String c = CookieManager.getInstance().getCookie(url); return c == null ? "" : c; }
+        catch (Throwable t) { return ""; }
+    }
+    private static boolean hasSession(String cookies) {
+        for (String part : cookies.split(";")) {
+            String name = part.split("=", 2)[0].trim();
+            if (name.equals("SAPISID") || name.equals("LOGIN_INFO")
+                || name.equals("__Secure-1PAPISID") || name.equals("__Secure-3PAPISID")) return true;
+        }
+        return false;
+    }
+    /** Drop youtube.com and google.com cookies, then return to the mobile home page. */
+    void signOut() {
+        CookieManager cm = CookieManager.getInstance();
+        expire(cm, "https://m.youtube.com", ".youtube.com");
+        expire(cm, "https://www.youtube.com", ".youtube.com");
+        expire(cm, "https://youtube.com", ".youtube.com");
+        expire(cm, "https://accounts.google.com", ".google.com");
+        expire(cm, "https://www.google.com", ".google.com");
+        expire(cm, "https://google.com", ".google.com");
+        cm.flush();
+        runOnUiThread(new Runnable() { @Override public void run() { if (web != null) web.loadUrl(HOME); } });
+    }
+    private static void expire(CookieManager cm, String url, String domain) {
+        String raw;
+        try { raw = cm.getCookie(url); } catch (Throwable t) { return; }
+        if (raw == null || raw.isEmpty()) return;
+        for (String part : raw.split(";")) {
+            int eq = part.indexOf('=');
+            String name = (eq < 0 ? part : part.substring(0, eq)).trim();
+            if (name.isEmpty()) continue;
+            String gone = name + "=; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/";
+            cm.setCookie(url, gone + "; Domain=" + domain);
+            cm.setCookie(url, gone);
+        }
+    }
+
     class Bridge {
         @JavascriptInterface public boolean isAutoRotate() { return MainActivity.this.isAutoRotate(); }
         @JavascriptInterface public void keepScreenOn(final boolean on) {
@@ -257,6 +308,9 @@ public class MainActivity extends Activity {
             runOnUiThread(new Runnable() { @Override public void run() { immersiveWanted = on; applySystemUi(); } });
         }
         @JavascriptInterface public void setAdblock(boolean on) { adblock = on; prefs.edit().putBoolean("adblock", on).apply(); }
+        /** True when this WebView has a YouTube/Google session. Separate from the phone's YouTube app and Chrome. */
+        @JavascriptInterface public boolean isSignedIn() { return MainActivity.this.isSignedIn(); }
+        @JavascriptInterface public void signOut() { MainActivity.this.signOut(); }
         @JavascriptInterface public boolean sensorStart() { return gravity.start(); }
         @JavascriptInterface public void sensorStop() { gravity.stop(); }
         @JavascriptInterface public String rv() { return gravity.read(); }
