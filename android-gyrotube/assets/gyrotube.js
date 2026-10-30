@@ -10,8 +10,15 @@ const log = (...a) => { try { console.debug('[GyroTube]', ...a); } catch (_) {} 
 
 /* ---------------- settings (read synchronously so ad hooks know the switch at document-start) ---------------- */
 let legacy = {}; try { legacy = JSON.parse(localStorage.getItem('gyrotube') || '{}') || {}; } catch (_) {}
+let savedTube = {}; try { savedTube = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (_) {}
+const profile0 = savedTube.profile || legacy.profile || 'esports';
 const C = K.core({ key: KEY, native: NATIVE, toast: (m) => ui && ui.toast(m),
-  defaults: { profile: legacy.profile || 'esports', zoom: legacy.zoom === undefined ? null : legacy.zoom, tilt: legacy.tilt !== false, autoGyro: legacy.autoGyro !== false } });
+  defaults: {
+    profile: profile0, zoom: legacy.zoom === undefined ? null : legacy.zoom, tilt: legacy.tilt !== false, autoGyro: legacy.autoGyro !== false,
+    radar: Object.prototype.hasOwnProperty.call(savedTube, 'radar') ? !!savedTube.radar : profile0 === 'esports',
+    radarCorner: 'tl', radarSize: 128, radarRegion: 0.18, radarPreset: 'cs2',
+    radarSet: Object.prototype.hasOwnProperty.call(savedTube, 'radar'),
+  } });
 const S = C.S;
 let ui = null;
 
@@ -49,7 +56,12 @@ html.gt-on video.gt-video{position:fixed!important;left:50%!important;top:50%!im
   width:var(--gt-w,100vw)!important;height:var(--gt-h,100vh)!important;max-width:none!important;max-height:none!important;min-width:0!important;min-height:0!important;
   margin:0!important;padding:0!important;object-fit:contain!important;z-index:2147482500!important;background:#000!important;display:block!important;
   visibility:visible!important;opacity:1!important;transform:var(--gt-t,translate3d(-50%,-50%,0))!important;transform-origin:50% 50%!important;
-  will-change:transform!important;backface-visibility:hidden!important;filter:none!important}`;
+  will-change:transform!important;backface-visibility:hidden!important;filter:none!important}
+#gt-radar{position:fixed;z-index:2147482550;display:none;border-radius:10px;box-shadow:0 0 0 2px rgba(255,184,112,.9);pointer-events:none;background:#000}
+#gt-radar[data-corner="tl"]{top:calc(64px + var(--sat,0px));left:calc(12px + var(--sal,0px))}
+#gt-radar[data-corner="tr"]{top:calc(64px + var(--sat,0px));right:calc(12px + var(--sar,0px))}
+#gt-radar[data-corner="bl"]{bottom:calc(88px + var(--sab,0px));left:calc(12px + var(--sal,0px))}
+#gt-radar[data-corner="br"]{bottom:calc(88px + var(--sab,0px));right:calc(12px + var(--sar,0px))}`;
 function addStyles() {
   const root = document.head || document.documentElement; if (!root) return;
   if (!document.getElementById('gt-style')) { const s = document.createElement('style'); s.id = 'gt-style'; s.textContent = PAGE_CSS; root.appendChild(s); }
@@ -179,17 +191,136 @@ function exit() {
   unmarkAncestors();
   const r = document.documentElement; r.classList.remove('gt-on'); r.style.removeProperty('--gt-w'); r.style.removeProperty('--gt-h');
   ui.setRot(0); ui.active(false); G.video = null; G.L = null;
+  hideRadar();
   try { window.dispatchEvent(new Event('resize')); } catch (_) {}
+}
+/* ---------------- 5b. pinned radar: a corner of the source frame, drawn, never read back ---------------- */
+const RADAR_PRESETS = {
+  cs2: { label: 'CS2', corner: 'tl', region: 0.18 },
+  dota2: { label: 'Dota 2', corner: 'br', region: 0.22 },
+  lol: { label: 'LoL', corner: 'br', region: 0.20 },
+  valorant: { label: 'Valorant', corner: 'tl', region: 0.16 },
+};
+const radar = { canvas: null, ctx: null, last: 0, dead: false, key: '' };
+function ensureRadar() {
+  if (radar.canvas) return;
+  const c = document.createElement('canvas');
+  c.id = 'gt-radar';
+  c.setAttribute('aria-hidden', 'true');
+  (document.body || document.documentElement).appendChild(c);
+  radar.canvas = c;
+  radar.ctx = c.getContext('2d', { alpha: false });
+}
+function radarSrc(v) {
+  const vw = v.videoWidth, vh = v.videoHeight;
+  if (!vw || !vh) return null;
+  const frac = Math.max(0.08, Math.min(0.40, +S.radarRegion || 0.18));
+  let sw = vw * frac, sh = sw;
+  if (sh > vh) sh = vh;
+  if (sw > vw) sw = vw;
+  const right = S.radarCorner === 'tr' || S.radarCorner === 'br';
+  const bottom = S.radarCorner === 'bl' || S.radarCorner === 'br';
+  return { sx: right ? vw - sw : 0, sy: bottom ? vh - sh : 0, sw, sh };
+}
+function placeRadar() {
+  const size = Math.max(72, Math.min(240, +S.radarSize || 128));
+  const corner = RADAR_PRESETS[S.radarPreset] ? S.radarCorner : (S.radarCorner || 'tl');
+  const key = size + corner;
+  const c = radar.canvas;
+  if (radar.key !== key) {
+    radar.key = key;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    c.width = Math.round(size * dpr);
+    c.height = Math.round(size * dpr);
+    c.style.width = size + 'px';
+    c.style.height = size + 'px';
+    c.dataset.corner = corner;
+  }
+}
+function hideRadar() { if (radar.canvas) radar.canvas.style.display = 'none'; }
+function drawRadar(now, v) {
+  const show = !!(S.radar && G.on && v && G.L && G.L.pan && !radar.dead);
+  if (!show) { hideRadar(); return; }
+  ensureRadar();
+  if (!radar.ctx) { radar.dead = true; hideRadar(); return; }
+  placeRadar();
+  radar.canvas.style.display = 'block';
+  if (v.paused || now - radar.last < 40) return;   // pause drawing; ~25 fps while playing
+  const src = radarSrc(v);
+  if (!src) return;
+  try {
+    radar.ctx.drawImage(v, src.sx, src.sy, src.sw, src.sh, 0, 0, radar.canvas.width, radar.canvas.height);
+    radar.last = now;
+  } catch (_) {
+    radar.dead = true;
+    hideRadar();
+  }
+}
+function syncRadarControls() {
+  const root = ui && ui.sr && ui.sr.getElementById('gt-radar-sec');
+  if (!root) return;
+  const sw = root.querySelector('.sw');
+  if (sw) sw.classList.toggle('on', !!S.radar);
+  root.querySelectorAll('[data-radar-corner]').forEach((b) => b.classList.toggle('on', b.dataset.radarCorner === S.radarCorner));
+  root.querySelectorAll('[data-radar-preset]').forEach((b) => b.classList.toggle('on', b.dataset.radarPreset === S.radarPreset));
+  const size = root.querySelector('[data-radar-size]');
+  const region = root.querySelector('[data-radar-region]');
+  const focus = ui.sr.activeElement;
+  if (size && focus !== size) { size.value = S.radarSize; size.style.setProperty('--p', ((size.value - 72) / (240 - 72) * 100) + '%'); }
+  if (region && focus !== region) { region.value = Math.round((+S.radarRegion || 0.18) * 100); region.style.setProperty('--p', ((region.value - 8) / (40 - 8) * 100) + '%'); }
+  const sv = root.querySelector('[data-radar-size-val]');
+  const rv = root.querySelector('[data-radar-region-val]');
+  if (sv) sv.textContent = Math.round(+S.radarSize || 128) + ' px';
+  if (rv) rv.textContent = Math.round((+S.radarRegion || 0.18) * 100) + '%';
+}
+function installRadarSettings() {
+  if (!ui || !ui.sr || ui.sr.getElementById('gt-radar-sec')) return;
+  const sbody = ui.sr.getElementById('sbody');
+  if (!sbody) return;
+  const h = K.h;
+  const seg = (attr, entries, onPick) => {
+    const box = h('div', { class: 'seg', role: 'radiogroup' });
+    for (const [id, label] of entries) {
+      const b = h('button', { type: 'button', role: 'radio', [attr]: id }, h('span', { text: label }));
+      b.dataset[attr === 'data-radar-corner' ? 'radarCorner' : 'radarPreset'] = id;
+      K.tap(b, () => onPick(id));
+      box.append(b);
+    }
+    return box;
+  };
+  const sw = h('div', { class: 'sw', role: 'switch' });
+  const toggle = h('div', { class: 'row tapr' }, h('div', { class: 'tx' }, h('div', { class: 't', text: 'Pinned radar' }), h('div', { class: 's', text: 'A corner of the full frame, on top of the picture' })), sw);
+  K.tap(toggle, () => C.set('radar', !S.radar));
+  const sizeVal = h('span', { class: 'val', 'data-radar-size-val': '1' });
+  const size = h('input', { type: 'range', min: '72', max: '240', step: '4', 'data-radar-size': '1', 'aria-label': 'Radar size' });
+  size.addEventListener('input', () => { C.set('radarSize', +size.value); S.radarPreset = ''; C.save(); });
+  const regionVal = h('span', { class: 'val', 'data-radar-region-val': '1' });
+  const region = h('input', { type: 'range', min: '8', max: '40', step: '1', 'data-radar-region': '1', 'aria-label': 'Source region size' });
+  region.addEventListener('input', () => { C.set('radarRegion', +region.value / 100); S.radarPreset = ''; C.save(); });
+  const sec = h('div', { class: 'sec', id: 'gt-radar-sec' }, h('h3', { text: 'Radar' }), toggle,
+    h('div', { class: 'row col' }, h('div', { class: 't', text: 'Game preset' }), h('div', { class: 's', text: 'CS2 and Valorant are top-left. Dota 2 and LoL are bottom-right.' }),
+      seg('data-radar-preset', Object.entries(RADAR_PRESETS).map(([id, p]) => [id, p.label]), (id) => {
+        const p = RADAR_PRESETS[id];
+        S.radarCorner = p.corner; S.radarRegion = p.region; S.radarPreset = id; S.radar = true; S.radarSet = true;
+        C.save(); radar.key = ''; syncRadarControls();
+      })),
+    h('div', { class: 'row col' }, h('div', { class: 't', text: 'Source corner' }),
+      seg('data-radar-corner', [['tl', 'TL'], ['tr', 'TR'], ['bl', 'BL'], ['br', 'BR']], (id) => { C.set('radarCorner', id); S.radarPreset = ''; C.save(); radar.key = ''; })),
+    h('div', { class: 'row col' }, h('div', { class: 'hd' }, h('div', { class: 't', text: 'Size' }), sizeVal), size),
+    h('div', { class: 'row col' }, h('div', { class: 'hd' }, h('div', { class: 't', text: 'Source region' }), regionVal), region));
+  sbody.append(sec);
+  syncRadarControls();
 }
 let prevNow = 0, uiTick = 0;
 function frame(now) {
-  if (!G.on) { G.raf = 0; prevNow = 0; return; }
+  if (!G.on) { G.raf = 0; prevNow = 0; hideRadar(); return; }
   G.raf = requestAnimationFrame(frame);
   const dt = prevNow ? Math.min(0.1, (now - prevNow) / 1000) : 0.016; prevNow = now;
   const v = G.video; if (!v) return;
   G.L = layout();
   C.update(dt, now, G.L);
   apply();
+  drawRadar(now, v);
   ui.mini(G.L.pan, 1 / G.L.M, C.X, now);
   if (now - uiTick > 250) { uiTick = now; ui.setTime(v.currentTime, v.duration); ui.setPlaying(!v.paused); }   // ~4 Hz
 }
@@ -208,7 +339,7 @@ function mount() {
   if (ui && ui.host.isConnected) return true;
   if (!document.body) return false;
   if (!ui) {
-    ui = K.ui({ id: 'gyrotube-root', core: C, appName: 'GyroTube', version: '1.4', backIcon: 'close', css: TUBE_CSS,
+    ui = K.ui({ id: 'gyrotube-root', core: C, appName: 'GyroTube', version: '1.5', backIcon: 'close', css: TUBE_CSS,
       aboutText: 'Personal use. Not affiliated with YouTube or Google, and not for Google Play: blocking ads may violate the YouTube Terms of Service.',
       features: { backdrop: true, adblock: true, autoGyro: true }, act, seek: seekTo,
       onSetting: (k) => { if (k === 'adblock') { addStyles(); if (NATIVE && NATIVE.setAdblock) try { NATIVE.setAdblock(!!S.adblock); } catch (_) {} if (!S.adblock && adActive) endAd(); ui.toast(S.adblock ? 'Ad blocking on' : 'Ad blocking off'); } },
@@ -221,7 +352,14 @@ function mount() {
     C.bindTouch(ui.touch, { L: () => G.L, rot: () => (G.L ? G.L.rot : 0),
       onDown: () => { if (!ui.isShown()) { ui.show(); return true; } return false; },          // instant: controls appear on touch-down
       onTap: (shownOnDown) => { if (!shownOnDown) ui.hide(); } });
-    C.on((k) => { if (k === 'zoom' || k === 'phys') G.lastT = ''; });
+    C.on((k) => {
+      if (k === 'zoom' || k === 'phys') G.lastT = '';
+      if (k === 'radar') { S.radarSet = true; C.save(); }
+      if (k === 'profile' && !S.radarSet) { S.radar = S.profile === 'esports'; C.save(); }
+      if (k === 'radarCorner') radar.key = '';
+      if (k === 'radar' || k === 'radarCorner' || k === 'radarSize' || k === 'radarRegion' || k === 'profile') syncRadarControls();
+    });
+    installRadarSettings();
   }
   document.documentElement.appendChild(ui.host);
   document.documentElement.classList.add('gt-shell');
@@ -264,7 +402,7 @@ function tick() {
   try {
     if (G.on) {   // housekeeping at 2 Hz instead of per frame
       const nv = findVideo();
-      if (nv && nv !== G.video) { if (G.video) G.video.classList.remove('gt-video'); G.video = nv; nv.classList.add('gt-video'); markAncestors(nv); G.lastT = ''; }
+      if (nv && nv !== G.video) { if (G.video) G.video.classList.remove('gt-video'); G.video = nv; nv.classList.add('gt-video'); markAncestors(nv); G.lastT = ''; radar.dead = false; }
       if (G.anc.length && !G.anc[0].classList.contains('gt-anc')) markAncestors(G.video);
       if (G.video && G.video.style.getPropertyValue('--gt-t') !== G.lastT) G.lastT = '';   // YouTube clobbered inline style
       if (ui) ui.setTitle(title());

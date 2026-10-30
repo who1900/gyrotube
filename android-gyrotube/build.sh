@@ -47,7 +47,7 @@ mkdir -p build/gen build/classes build/dex build/assets "$(dirname "$OUT")"
 
 "$BT/aapt2" compile --dir res -o build/res.zip
 "$BT/aapt2" link -I "$JAR" --manifest AndroidManifest.xml -o build/base.apk --java build/gen \
-  --min-sdk-version 24 --target-sdk-version 34 --version-code 5 --version-name 1.4 \
+  --min-sdk-version 24 --target-sdk-version 34 --version-code 6 --version-name 1.5 \
   -A build/assets build/res.zip
 
 mapfile -d '' java_files < <(find src build/gen -name '*.java' -print0)

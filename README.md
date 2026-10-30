@@ -2,7 +2,7 @@
 
 **A YouTube client for Android. In portrait, 16:9 video fills the screen height, and you choose the part of the frame by tilting the phone.**
 
-It also blocks ads and draws its own Material 3 interface. GyroTube 1.4, minSdk 24.
+It also blocks ads and draws its own Material 3 interface. GyroTube 1.5, minSdk 24.
 
 [![MIT license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Android](https://img.shields.io/badge/platform-Android-3DDC84?logo=android&logoColor=white)](https://developer.android.com/)
@@ -20,6 +20,7 @@ Hold the phone in portrait and the picture is cropped to the screen height (**Fi
 - Zoom **Height**, **2×**, **1.5×**, and **16:9**, plus pinch zoom
 - Drag to pan; gyro control returns about 1.5 s after you lift your finger
 - Calibration (“this angle is center”) and a minimap of the window inside the frame
+- Esports radar: a corner of the full frame (CS2 and Valorant top-left, Dota 2 and LoL bottom-right) drawn over the picture. Off in Cinema until you turn it on
 - Built-in ad blocking (network requests, in-player ads, and promo cards) with auto-skip
 - Material 3 dark UI: search bar, library, history, settings, safe-area insets, screen wake lock
 - Sign-in that stays inside this app. See [Account](#account)
@@ -39,8 +40,8 @@ The search page is live `m.youtube.com` with GyroTube’s bar injected. YouTube 
 </tr>
 <tr>
 <td align="center"><img src="screenshots/gyrotube-settings.png" alt="GyroTube settings sheet" width="200"><br><b>Settings</b></td>
+<td align="center"><img src="screenshots/gyrotube-radar.png" alt="GyroTube portrait player with the top-left radar overlay" width="200"><br><b>Radar</b></td>
 <td align="center"><img src="screenshots/icon-gyrotube.png" alt="GyroTube launcher icon on a dark rounded tile" width="200"><br><b>Launcher</b></td>
-<td></td>
 <td></td>
 </tr>
 </table>
@@ -69,7 +70,7 @@ Android asks you to allow that source (Settings → Apps → Special app access 
 
 ## Build
 
-JDK 17 or newer, Android SDK **build-tools 35.0.0**, and **platforms;android-34**. Both apps build with aapt2, javac, d8, zipalign, and apksigner. Current versions: GyroTube **1.4** (versionCode 5), GyroView **1.5** (versionCode 6).
+JDK 17 or newer, Android SDK **build-tools 35.0.0**, and **platforms;android-34**. Both apps build with aapt2, javac, d8, zipalign, and apksigner. Current versions: GyroTube **1.5** (versionCode 6), GyroView **1.5** (versionCode 6).
 
 ```bash
 export ANDROID_HOME="$HOME/android-sdk"   # ANDROID_SDK_ROOT is also accepted
