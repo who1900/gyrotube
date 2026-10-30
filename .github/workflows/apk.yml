@@ -41,18 +41,18 @@ jobs:
           echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
           echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
 
-      - name: Build GyroView
-        working-directory: android-gyroview
-        run: ./build.sh "$RUNNER_TEMP/GyroView.apk"
-
       - name: Build GyroTube
         working-directory: android-gyrotube
         run: ./build.sh "$RUNNER_TEMP/GyroTube.apk"
 
+      - name: Build GyroView
+        working-directory: android-gyroview
+        run: ./build.sh "$RUNNER_TEMP/GyroView.apk"
+
       - uses: actions/upload-artifact@v4
         with:
-          name: gyrotube-apks
+          name: GyroTube
           path: |
-            ${{ runner.temp }}/GyroView.apk
             ${{ runner.temp }}/GyroTube.apk
+            ${{ runner.temp }}/GyroView.apk
           if-no-files-found: error
