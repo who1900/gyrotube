@@ -141,7 +141,7 @@ public class MainActivity extends Activity {
         s.setLoadWithOverviewMode(true);
         s.setSupportZoom(false);
         s.setUserAgentString(chromeUa(s.getUserAgentString()));
-        try {   // don't announce "X-Requested-With: <package>" (helps Google sign-in / normal site)
+        try {   // androidx.webkit 1.12.1 exposes this. An empty allow-list omits X-Requested-With for every origin.
             if (WebViewFeature.isFeatureSupported(WebViewFeature.REQUESTED_WITH_HEADER_ALLOW_LIST))
                 WebSettingsCompat.setRequestedWithHeaderOriginAllowList(s, Collections.<String>emptySet());
         } catch (Throwable ignored) {}
@@ -164,6 +164,9 @@ public class MainActivity extends Activity {
 
         web.setWebViewClient(new WebViewClient() {
             @Override public WebResourceResponse shouldInterceptRequest(WebView v, WebResourceRequest r) {
+                // Ad blocking only. Do not proxy the request to strip headers: POST bodies and
+                // accounts.google.com sign-in cannot be replayed safely. X-Requested-With is
+                // removed up front with setRequestedWithHeaderOriginAllowList.
                 return isBlocked(r.getUrl()) ? empty() : null;
             }
             @Override public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest r) {

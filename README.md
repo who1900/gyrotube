@@ -231,6 +231,14 @@ Issues and pull requests are welcome.
 - UI copy is English.
 - Sensor, inset, and YouTube-injection changes need a device. Each Android app builds with its own `build.sh`.
 
+## Known issues
+
+YouTube sometimes answers with “Sign in to confirm you’re not a bot” and then refuses to start the video. That showed up while capturing the watch-page screenshots in a headless browser. GyroTube already presents a mobile Chrome user agent and, on a WebView that supports it, clears the `X-Requested-With` header so the site is less likely to treat the app as an embedded WebView.
+
+That header is removed with `WebSettingsCompat.setRequestedWithHeaderOriginAllowList(settings, emptySet())` when `WebViewFeature.REQUESTED_WITH_HEADER_ALLOW_LIST` is available. The bundled `androidx-webkit` 1.12.1 jar includes both the method and the feature constant. If a device WebView does not support the feature, GyroTube does not fetch the request itself and return a stand-in response. Replaying POST bodies or the Google sign-in flow that way drops data and breaks the login. Ad blocking still only answers the blocked hosts with an empty 204.
+
+A normal Chrome session using the same user agent was offered Google’s ordinary sign-in form, not “This browser or app may not be secure.” An Android WebView on a particular device can still be blocked; there is no further workaround in the app.
+
 ## License and notices
 
 Code in this repository is [MIT](LICENSE), copyright 2026 who1900. Icons in GVKit are Lucide (ISC), some of them derived from Feather (MIT). The AndroidX jars are Apache-2.0. Details are in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
