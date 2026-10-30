@@ -1,0 +1,24 @@
+# Build output
+build/
+dist/
+*.apk
+*.ap_
+*.aab
+*.idsig
+*.dex
+
+# Signing material. Never commit a keystore or a password file.
+*.keystore
+*.jks
+*.keystore.properties
+local-debug.keystore
+
+# Web assets staged by an older GyroView build (current builds stage under build/)
+android-gyroview/assets/
+
+# Editor / OS
+.DS_Store
+*.swp
+*~
+.idea/
+*.iml
