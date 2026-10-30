@@ -106,6 +106,14 @@ If `KEYSTORE` is unset, the first build writes `local-debug.keystore` in that ap
 
 Do not commit `*.keystore`, `*.jks`, or a password.
 
+To make GitHub Actions sign with your key, add these repository secrets. `KEY_PASS` is optional and defaults to the store password.
+
+```bash
+base64 -w0 release.keystore
+```
+
+Put that single line in `KEYSTORE_BASE64`, the store password in `KEYSTORE_PASS`, and the alias in `KEY_ALIAS`. On macOS, `base64 -i release.keystore | tr -d '\n'` is the same one-line encoding. If any of `KEYSTORE_BASE64`, `KEYSTORE_PASS`, or `KEY_ALIAS` is missing, the workflow signs with the debug keystore and writes a warning on the job summary. Those APKs cannot update an install that used a different key.
+
 ## How the pan is computed
 
 Tilt is measured from a calibrated center. Δγ is a blend of device roll and gamma (degrees). Sensitivity `s_ens` scales the range, the dead zone `z` defaults to 0.5° (clamped to 0°–3°), and the curve exponent `p` is 1.05.

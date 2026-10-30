@@ -41,12 +41,46 @@ jobs:
           echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
           echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
 
+      - name: Prepare signing
+        id: signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASS: ${{ secrets.KEYSTORE_PASS }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        run: |
+          set -euo pipefail
+          # Do not print these values. base64 -d writes only the keystore file.
+          if [ -n "${KEYSTORE_BASE64}" ] && [ -n "${KEYSTORE_PASS}" ] && [ -n "${KEY_ALIAS}" ]; then
+            umask 077
+            printf '%s' "${KEYSTORE_BASE64}" | base64 -d > "${RUNNER_TEMP}/release.keystore"
+            echo "mode=release" >> "${GITHUB_OUTPUT}"
+            echo "keystore=${RUNNER_TEMP}/release.keystore" >> "${GITHUB_OUTPUT}"
+            echo "### Release signing" >> "${GITHUB_STEP_SUMMARY}"
+            echo "APKs are signed with the keystore provided as KEYSTORE_BASE64." >> "${GITHUB_STEP_SUMMARY}"
+          else
+            echo "mode=debug" >> "${GITHUB_OUTPUT}"
+            echo "keystore=" >> "${GITHUB_OUTPUT}"
+            echo "### Debug signing" >> "${GITHUB_STEP_SUMMARY}"
+            echo "KEYSTORE_BASE64, KEYSTORE_PASS, and KEY_ALIAS are not all set. This build uses a throwaway debug keystore and **cannot update** an install signed with a different key." >> "${GITHUB_STEP_SUMMARY}"
+            echo "::warning title=Debug signing::No release keystore secrets. The APKs cannot update over a previous install."
+          fi
+
       - name: Build GyroTube
         working-directory: android-gyrotube
+        env:
+          KEYSTORE: ${{ steps.signing.outputs.keystore }}
+          KEYSTORE_PASS: ${{ secrets.KEYSTORE_PASS }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.KEY_PASS }}
         run: ./build.sh "$RUNNER_TEMP/GyroTube.apk"
 
       - name: Build GyroView
         working-directory: android-gyroview
+        env:
+          KEYSTORE: ${{ steps.signing.outputs.keystore }}
+          KEYSTORE_PASS: ${{ secrets.KEYSTORE_PASS }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.KEY_PASS }}
         run: ./build.sh "$RUNNER_TEMP/GyroView.apk"
 
       - uses: actions/upload-artifact@v4
